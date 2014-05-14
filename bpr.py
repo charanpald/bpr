@@ -4,7 +4,7 @@ Bayesian Personalized Ranking
 Matrix Factorization model and a variety of classes
 implementing different sampling strategies.
 """
-
+import logging 
 import numpy as np
 from math import exp
 import random
@@ -47,10 +47,10 @@ class BPR(object):
 
         print 'initial loss = {0}'.format(self.loss())
         for it in xrange(num_iters):
-            print 'starting iteration {0}'.format(it)
+            #print 'starting iteration {0}'.format(it)
             for u,i,j in sampler.generate_samples(self.data):
                 self.update_factors(u,i,j)
-            print 'iteration {0}: loss = {1}'.format(it,self.loss())
+            logging.debug( 'iteration {0}: loss = {1}'.format(it,self.loss()))
 
     def init(self,data):
         self.data = data
@@ -60,15 +60,15 @@ class BPR(object):
         self.user_factors = np.random.random_sample((self.num_users,self.D))
         self.item_factors = np.random.random_sample((self.num_items,self.D))
 
-        self.create_loss_samples()
+        self.create_loss_samples(data)
 
-    def create_loss_samples(self):
+    def create_loss_samples(self, data):
         # apply rule of thumb to decide num samples over which to compute loss
         num_loss_samples = int(100*self.num_users**0.5)
 
         print 'sampling {0} <user,item i,item j> triples...'.format(num_loss_samples)
         sampler = UniformUserUniformItem(True)
-        self.loss_samples = [t for t in sampler.generate_samples(data,num_loss_samples)]
+        self.loss_samples = [t for t in sampler.generate_samples(data, num_loss_samples)]
 
     def update_factors(self,u,i,j,update_u=True,update_i=True):
         """apply SGD update"""
