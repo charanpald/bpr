@@ -45,7 +45,7 @@ class BPR(object):
         """
         self.init(data)
 
-        print 'initial loss = {0}'.format(self.loss())
+        logging.debug('initial loss = {0}'.format(self.loss()))
         for it in xrange(num_iters):
             #print 'starting iteration {0}'.format(it)
             for u,i,j in sampler.generate_samples(self.data):
@@ -66,7 +66,7 @@ class BPR(object):
         # apply rule of thumb to decide num samples over which to compute loss
         num_loss_samples = int(100*self.num_users**0.5)
 
-        print 'sampling {0} <user,item i,item j> triples...'.format(num_loss_samples)
+        logging.debug('sampling {0} <user,item i,item j> triples...'.format(num_loss_samples))
         sampler = UniformUserUniformItem(True)
         self.loss_samples = [t for t in sampler.generate_samples(data, num_loss_samples)]
 
@@ -77,8 +77,11 @@ class BPR(object):
         x = self.item_bias[i] - self.item_bias[j] \
             + np.dot(self.user_factors[u,:],self.item_factors[i,:]-self.item_factors[j,:])
 
-        z = 1.0/(1.0+exp(x))
-
+        try: 
+            z = 1.0/(1.0+exp(x))
+        except OverflowError: 
+            return
+                
         # update bias terms
         if update_i:
             d = z - self.bias_regularization * self.item_bias[i]
@@ -101,7 +104,11 @@ class BPR(object):
         ranking_loss = 0;
         for u,i,j in self.loss_samples:
             x = self.predict(u,i) - self.predict(u,j)
-            ranking_loss += 1.0/(1.0+exp(x))
+            try: 
+                ranking_loss += 1.0/(1.0+exp(x))
+            except OverflowError: 
+                if x < 0: 
+                    ranking_loss += 1.0
 
         complexity = 0;
         for u,i,j in self.loss_samples:
