@@ -6,7 +6,7 @@ implementing different sampling strategies.
 """
 import logging 
 import numpy as np
-from math import exp
+from math import exp, log 
 import random
 
 class BPRArgs(object):
@@ -50,7 +50,7 @@ class BPR(object):
             #print 'starting iteration {0}'.format(it)
             for u,i,j in sampler.generate_samples(self.data):
                 self.update_factors(u,i,j)
-            logging.debug( 'iteration {0}: loss = {1}'.format(it,self.loss()))
+            logging.debug( 'iteration {0}: loss = {1}'.format(it, self.loss()))
 
     def init(self,data):
         self.data = data
@@ -77,8 +77,9 @@ class BPR(object):
         x = self.item_bias[i] - self.item_bias[j] \
             + np.dot(self.user_factors[u,:],self.item_factors[i,:]-self.item_factors[j,:])
 
+        #Really ought to be exp(-x) on the numerator 
         try: 
-            z = 1.0/(1.0+exp(x))
+            z = exp(-x)/(1.0+exp(-x))
         except OverflowError: 
             return
                 
@@ -105,7 +106,7 @@ class BPR(object):
         for u,i,j in self.loss_samples:
             x = self.predict(u,i) - self.predict(u,j)
             try: 
-                ranking_loss += 1.0/(1.0+exp(x))
+                ranking_loss += log(1.0/(1.0+exp(-x)))
             except OverflowError: 
                 if x < 0: 
                     ranking_loss += 1.0
@@ -138,8 +139,8 @@ class Sampler(object):
 
     def sample_user(self):
         u = self.uniform_user()
-        num_items = self.data[u].getnnz()
-        assert(num_items > 0 and num_items != self.num_items)
+        #num_items = self.data[u].getnnz()
+        #assert(num_items > 0 and num_items != self.num_items)
         return u
 
     def sample_negative_item(self,user_items):
@@ -176,7 +177,7 @@ class UniformUserUniformItem(Sampler):
             u = self.uniform_user()
             # sample positive item
             i = random.choice(self.data[u].indices)
-            j = self.sample_negative_item(self.data[u].indices)
+            j = self.sample_negative_item(self.data[u].nonzero()[1])
             yield u,i,j
 
 class UniformUserUniformItemWithoutReplacement(Sampler):
@@ -208,7 +209,7 @@ class UniformPair(Sampler):
             idx = random.randint(0,self.data.nnz-1)
             u = self.users[self.idx]
             i = self.items[self.idx]
-            j = self.sample_negative_item(self.data[u])
+            j = self.sample_negative_item(self.data[u].nonzero()[1])
             yield u,i,j
 
 class UniformPairWithoutReplacement(Sampler):
@@ -224,7 +225,7 @@ class UniformPairWithoutReplacement(Sampler):
         for _ in xrange(self.num_samples(self.data.nnz)):
             u = self.users[self.idx]
             i = self.items[self.idx]
-            j = self.sample_negative_item(self.data[u])
+            j = self.sample_negative_item(self.data[u].nonzero()[1])
             self.idx += 1
             yield u,i,j
 
