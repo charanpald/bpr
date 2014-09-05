@@ -2,6 +2,7 @@ import logging
 import sys 
 import unittest
 import numpy
+import sppy 
 import numpy.testing as nptst 
 from bpr import BPRArgs, BPR, UniformPairWithoutReplacement, Sampler 
 from sandbox.util.SparseUtils import SparseUtils
@@ -18,7 +19,7 @@ class  bprTest(unittest.TestCase):
         k = 5
         u = 0.1 
         w = 1-u
-        self.X = SparseUtils.generateSparseBinaryMatrix((self.m, self.n), k, w, csarray=False)
+        self.X = SparseUtils.generateSparseBinaryMatrix((self.m, self.n), k, w, csarray=True)
         self.X.prune()
 
     def testInit(self): 
@@ -34,12 +35,11 @@ class  bprTest(unittest.TestCase):
         
         learner = BPR(k, args)    
         
-        maxIterations = 100
+        maxIterations = 10
         sample_negative_items_empirically = True
         sampler = UniformPairWithoutReplacement(sample_negative_items_empirically)
+
         learner.train(self.X, sampler, maxIterations)
-        
-        #Check the AUC is large
         print(MCEvaluator.averageAuc(self.X, learner.user_factors, learner.item_factors))
 
     def testSampler(self): 
@@ -67,8 +67,8 @@ class  bprTest(unittest.TestCase):
         items = set([])        
         
         for i in range(1000): 
-            item = sampler.sample_negative_item(self.X[0].nonzero()[1])
-            self.assertTrue(item not in self.X[0].nonzero()[1])      
+            item = sampler.sample_negative_item(self.X.rowInds(0))
+            self.assertTrue(item not in self.X.rowInds(0))      
 
         
         #Now test UniformPairWithoutReplacement

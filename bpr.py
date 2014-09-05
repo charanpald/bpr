@@ -159,7 +159,7 @@ class Sampler(object):
         if self.sample_negative_items_empirically:
             # just pick something someone rated!
             u = self.uniform_user()
-            i = random.choice(self.data[u].indices)
+            i = random.choice(self.data.rowInds(u))
         else:
             i = random.randint(0,self.num_items-1)
         return i
@@ -176,8 +176,8 @@ class UniformUserUniformItem(Sampler):
         for _ in xrange(self.num_samples(self.data.nnz)):
             u = self.uniform_user()
             # sample positive item
-            i = random.choice(self.data[u].indices)
-            j = self.sample_negative_item(self.data[u].nonzero()[1])
+            i = random.choice(self.data.rowInds(u))
+            j = self.sample_negative_item(self.data.rowInds(u))
             yield u,i,j
 
 class UniformUserUniformItemWithoutReplacement(Sampler):
@@ -189,12 +189,12 @@ class UniformUserUniformItemWithoutReplacement(Sampler):
         for _ in xrange(self.num_samples(self.data.nnz)):
             u = self.uniform_user()
             # sample positive item without replacement if we can
-            user_items = self.local_data[u].nonzero()[1]
+            user_items = self.local_data.rowInds(u)
             if len(user_items) == 0:
                 # reset user data if it's all been sampled
-                for ix in self.local_data[u].indices:
+                for ix in self.local_data.rowInds(u):
                     self.local_data[u,ix] = self.data[u,ix]
-                user_items = self.local_data[u].nonzero()[1]
+                user_items = self.local_data.rowInds(u)
             i = random.choice(user_items)
             # forget this item so we don't sample it again for the same user
             self.local_data[u,i] = 0
@@ -209,7 +209,7 @@ class UniformPair(Sampler):
             idx = random.randint(0,self.data.nnz-1)
             u = self.users[self.idx]
             i = self.items[self.idx]
-            j = self.sample_negative_item(self.data[u].nonzero()[1])
+            j = self.sample_negative_item(self.data.rowInds(u))
             yield u,i,j
 
 class UniformPairWithoutReplacement(Sampler):
@@ -225,7 +225,7 @@ class UniformPairWithoutReplacement(Sampler):
         for _ in xrange(self.num_samples(self.data.nnz)):
             u = self.users[self.idx]
             i = self.items[self.idx]
-            j = self.sample_negative_item(self.data[u].nonzero()[1])
+            j = self.sample_negative_item(self.data.rowInds(u))
             self.idx += 1
             yield u,i,j
 
