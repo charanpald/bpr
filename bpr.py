@@ -77,11 +77,14 @@ class BPR(object):
         x = self.item_bias[i] - self.item_bias[j] \
             + np.dot(self.user_factors[u,:],self.item_factors[i,:]-self.item_factors[j,:])
 
-        #Really ought to be exp(-x) on the numerator 
+        #Fix for numerical overflow issues 
         try: 
             z = exp(-x)/(1.0+exp(-x))
         except OverflowError: 
-            return
+            if x > 0: 
+                z = 0 
+            elif x < 0: 
+                z = 1
                 
         # update bias terms
         if update_i:
@@ -91,6 +94,8 @@ class BPR(object):
             d = -z - self.bias_regularization * self.item_bias[j]
             self.item_bias[j] += self.learning_rate * d
 
+        #Note all the regularisers are negative according to objective. Also we are adding the gradient 
+        #since we wish to maximise the objective
         if update_u:
             d = (self.item_factors[i,:]-self.item_factors[j,:])*z - self.user_regularization*self.user_factors[u,:]
             self.user_factors[u,:] += self.learning_rate*d
@@ -102,14 +107,21 @@ class BPR(object):
             self.item_factors[j,:] += self.learning_rate*d
 
     def loss(self):
+        """
+        Compute the BPR objective which is sum_uij ln sigma(x_uij) + lambda ||theta||^2
+        """        
+        
         ranking_loss = 0;
         for u,i,j in self.loss_samples:
             x = self.predict(u,i) - self.predict(u,j)
             try: 
                 ranking_loss += log(1.0/(1.0+exp(-x)))
             except OverflowError: 
-                if x < 0: 
-                    ranking_loss += 1.0
+                if x > 0: 
+                    ranking_loss += log(1.0) 
+                elif x < 0: 
+                    #Really it should be minus infinity 
+                    ranking_loss += -100
 
         complexity = 0;
         for u,i,j in self.loss_samples:
@@ -119,7 +131,7 @@ class BPR(object):
             complexity += self.bias_regularization * self.item_bias[i]**2
             complexity += self.bias_regularization * self.item_bias[j]**2
 
-        return ranking_loss + 0.5*complexity
+        return ranking_loss - 0.5*complexity
 
     def predict(self,u,i):
         return self.item_bias[i] + np.dot(self.user_factors[u],self.item_factors[i])
