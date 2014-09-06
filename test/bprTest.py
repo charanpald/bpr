@@ -41,6 +41,14 @@ class  bprTest(unittest.TestCase):
 
         learner.train(self.X, sampler, maxIterations)
         print(MCEvaluator.averageAuc(self.X, learner.user_factors, learner.item_factors))
+        
+        #Let's try regularisation 
+        args.user_regularization = 1
+        learner.train(self.X, sampler, maxIterations)
+        
+        #Let's try regularisation 
+        args.positive_item_regularization = 1
+        learner.train(self.X, sampler, maxIterations)
 
     def testSampler(self): 
         sampler = Sampler(False)
