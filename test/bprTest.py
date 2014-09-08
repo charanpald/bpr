@@ -4,7 +4,7 @@ import unittest
 import numpy
 import sppy 
 import numpy.testing as nptst 
-from bpr import BPRArgs, BPR, UniformPairWithoutReplacement, Sampler 
+from bpr import BPRArgs, BPR, UniformPairWithoutReplacement, Sampler, UniformUserUniformItem 
 from sandbox.util.SparseUtils import SparseUtils
 from sandbox.util.MCEvaluator import MCEvaluator
 
@@ -14,7 +14,7 @@ class  bprTest(unittest.TestCase):
         numpy.random.seed(21)
         logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
         
-        self.m = 50 
+        self.m = 30 
         self.n = 20 
         k = 5
         u = 0.1 
@@ -107,6 +107,119 @@ class  bprTest(unittest.TestCase):
         
         learner = BPR(k, args)   
         learner.init(self.X)
+
+    def testDerivatives(self): 
+        args = BPRArgs()   
+        args.user_regularization = 0.0 
+        args.negative_item_regularization = 0 
+        args.positive_item_regularization = 0 
+        args.bias_regularization = 0
+        args.learning_rate = 0 
+        k = 5
+        
+        learner = BPR(k, args)   
+        learner.init(self.X)
+        
+        eps = 10**-8
+        
+        sampler = UniformUserUniformItem(sample_negative_items_empirically=True)
+        
+        #Get user, pos item and negative item 
+        u = 0 
+        
+        user_factors = learner.user_factors.copy()
+        item_factors = learner.item_factors.copy()            
+        
+        #Compute user derivate via perturbations 
+        du1 = numpy.zeros(k)   
+        du2 = numpy.zeros(k)         
+        
+        inds = self.X.rowInds(u)
+        indsBar = numpy.setdiff1d(numpy.arange(self.X.shape[1]), inds)
+        
+        for i in inds: 
+            for j in indsBar: 
+                for ell in range(k): 
+                    learner.user_factors = user_factors.copy()                
+                    
+                    learner.user_factors[u, ell] = user_factors[u, ell]+eps
+                    loss1 = learner.lossExact()
+                    learner.user_factors[u, ell] = user_factors[u, ell]-eps
+                    loss2 = learner.lossExact() 
+                    
+                    learner.user_factors[u, ell] = user_factors[u, ell]
+                    du1[ell] += (loss1-loss2)/(2*eps)
+                    
+                du3, di3, dj3 = learner.update_factors(u, i, j)
+                du2 += du3    
+                
+        du1 = du1/numpy.linalg.norm(du1)      
+        du2 = du2/numpy.linalg.norm(du2)        
+        
+        print(du1, du2)
+               
+        """
+        di1 = numpy.zeros(k)  
+        di2 = numpy.zeros(k)
+
+        for u in range(self.m): 
+            print(u)
+            inds = self.X.rowInds(u)
+            indsBar = numpy.setdiff1d(numpy.arange(self.X.shape[1]), inds)            
+            
+            learner.item_factors = item_factors.copy()             
+            
+            for j in indsBar: 
+                for ell in range(k): 
+                    learner.item_factors[i, ell] = item_factors[i, ell]+eps
+                    loss1 = learner.lossExact()
+                    learner.item_factors[i, ell] = item_factors[i, ell]-eps
+                    loss2 = learner.lossExact() 
+                    
+                    learner.item_factors[i, ell] = item_factors[i, ell]
+                    di1[ell] += (loss1-loss2)/(2*eps)
+                    
+                du3, di3, dj3 = learner.update_factors(u, i, j)
+                di2 += di3    
+                
+        di1 = di1/numpy.linalg.norm(di1)      
+        di2 = di2/numpy.linalg.norm(di2)   
+        
+        print(di1, di2)
+        """
+
+        
+
+
+        dj1 = numpy.zeros(k)  
+        dj2 = numpy.zeros(k)
+
+        for u in range(self.m): 
+            print(u)
+            inds = self.X.rowInds(u)
+            indsBar = numpy.setdiff1d(numpy.arange(self.X.shape[1]), inds)            
+            
+            learner.item_factors = item_factors.copy()             
+            
+            for i in inds: 
+                for ell in range(k): 
+                    learner.item_factors[i, ell] = item_factors[i, ell]+eps
+                    loss1 = learner.lossExact()
+                    learner.item_factors[i, ell] = item_factors[i, ell]-eps
+                    loss2 = learner.lossExact() 
+                    
+                    learner.item_factors[i, ell] = item_factors[i, ell]
+                    dj1[ell] += (loss1-loss2)/(2*eps)
+                    
+                du3, di3, dj3 = learner.update_factors(u, i, j)
+                dj2 += dj3    
+                
+        dj1 = dj1/numpy.linalg.norm(dj1)      
+        dj2 = dj2/numpy.linalg.norm(dj2)   
+
+
+        print(dj1, dj2)
+
 
 if __name__ == '__main__':
     unittest.main()
