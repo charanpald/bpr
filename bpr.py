@@ -97,14 +97,16 @@ class BPR(object):
         #Note all the regularisers are negative according to objective. Also we are adding the gradient 
         #since we wish to maximise the objective
         if update_u:
-            d = (self.item_factors[i,:]-self.item_factors[j,:])*z - self.user_regularization*self.user_factors[u,:]
-            self.user_factors[u,:] += self.learning_rate*d
+            du = (self.item_factors[i,:]-self.item_factors[j,:])*z - self.user_regularization*self.user_factors[u,:]
+            self.user_factors[u,:] += self.learning_rate*du
         if update_i:
-            d = self.user_factors[u,:]*z - self.positive_item_regularization*self.item_factors[i,:]
-            self.item_factors[i,:] += self.learning_rate*d
+            di = self.user_factors[u,:]*z - self.positive_item_regularization*self.item_factors[i,:]
+            self.item_factors[i,:] += self.learning_rate*di
         if update_j:
-            d = -self.user_factors[u,:]*z - self.negative_item_regularization*self.item_factors[j,:]
-            self.item_factors[j,:] += self.learning_rate*d
+            dj = -self.user_factors[u,:]*z - self.negative_item_regularization*self.item_factors[j,:]
+            self.item_factors[j,:] += self.learning_rate*dj
+            
+        return du, di, dj 
 
     def loss(self):
         """
@@ -121,7 +123,7 @@ class BPR(object):
                     ranking_loss += log(1.0) 
                 elif x < 0: 
                     #Really it should be minus infinity 
-                    ranking_loss += -100
+                    ranking_loss += -1000
 
         complexity = 0;
         for u,i,j in self.loss_samples:
@@ -130,6 +132,46 @@ class BPR(object):
             complexity += self.negative_item_regularization * np.dot(self.item_factors[j],self.item_factors[j])
             complexity += self.bias_regularization * self.item_bias[i]**2
             complexity += self.bias_regularization * self.item_bias[j]**2
+
+        return ranking_loss - 0.5*complexity
+
+    def lossExact(self):
+        """
+        Compute the BPR objective which is sum_uij ln sigma(x_uij) + lambda ||theta||^2
+        """    
+
+
+        ranking_loss = 0;
+        normalisation = 0 
+        for u in range(self.data.shape[0]): 
+            inds = self.data.rowInds(u)
+            indsBar = np.setdiff1d(np.arange(self.data.shape[1]), inds)
+            
+            for i in inds: 
+                for j in indsBar: 
+            
+                    x = self.predict(u,i) - self.predict(u,j)
+                    normalisation += 1
+                    try: 
+                        ranking_loss += log(1.0/(1.0+exp(-x)))
+                    except OverflowError: 
+                        print("Overflow")
+                        if x > 0: 
+                            ranking_loss += log(1.0) 
+                        elif x < 0: 
+                            #Really it should be minus infinity 
+                            ranking_loss += -1000
+
+        ranking_loss /= normalisation
+
+        complexity = 0;
+        for u,i,j in self.loss_samples:
+            complexity += self.user_regularization * np.dot(self.user_factors[u],self.user_factors[u])
+            complexity += self.positive_item_regularization * np.dot(self.item_factors[i],self.item_factors[i])
+            complexity += self.negative_item_regularization * np.dot(self.item_factors[j],self.item_factors[j])
+            complexity += self.bias_regularization * self.item_bias[i]**2
+            complexity += self.bias_regularization * self.item_bias[j]**2
+            
 
         return ranking_loss - 0.5*complexity
 
