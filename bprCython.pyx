@@ -12,6 +12,7 @@ import numpy
 from math import exp, log 
 import random
 from sandbox.util.CythonUtils cimport inverseChoice
+from sandbox.util.MCEvaluator import MCEvaluator
 
 class BPRArgs(object):
 
@@ -55,7 +56,7 @@ cdef class BPR(object):
         data: user-item matrix as a scipy sparse matrix
               users and items are zero-indexed
         """
-        cdef unsigned int u, i, j, it       
+        cdef unsigned int u, i, j, it    
         cdef numpy.ndarray[double, ndim=2, mode="c"] user_factors        
         cdef numpy.ndarray[double, ndim=2, mode="c"] item_factors 
         
@@ -68,11 +69,13 @@ cdef class BPR(object):
         #train_samples = [t for t in sampler.generate_samples(data)]
         
         for it in xrange(num_iters):
+
             for u, i, j in sampler.generate_samples(data):
                 self.update_factors(user_factors, item_factors, u, i, j)
-                
+
             if it % self.recordStep == 0:
                 logging.debug( 'iteration {0}: loss = {1}'.format(it, self.loss(loss_samples, user_factors, item_factors)))
+                #logging.debug("AUC:" + str(MCEvaluator.averageAuc(data, user_factors, item_factors)))
                 loss_samples = [t for t in sampler.generate_samples(data)]
             
         return user_factors, item_factors 
