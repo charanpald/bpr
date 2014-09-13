@@ -72,7 +72,7 @@ cdef class BPR(object):
 
             if it % self.recordStep == 0:
                 logging.debug( 'iteration {0}: loss = {1}'.format(it, self.loss(loss_samples, user_factors, item_factors)))
-                logging.debug("AUC:" + str(MCEvaluator.averageAuc(data, user_factors, item_factors)))
+                #logging.debug("AUC:" + str(MCEvaluator.averageAuc(data, user_factors, item_factors)))
                 #loss_samples = [t for t in sampler.generate_samples(data)]
             
         return user_factors, item_factors 
