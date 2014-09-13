@@ -33,6 +33,7 @@ cdef class BPR(object):
     cdef public double bias_regularization, user_regularization, learning_rate
     cdef public double positive_item_regularization, negative_item_regularization
     cdef public bint update_negative_item_factors  
+    cdef public unsigned int numAucSamples 
 
     def __init__(self, D, args):
         """initialise BPR matrix factorization model
@@ -46,7 +47,8 @@ cdef class BPR(object):
         self.negative_item_regularization = args.negative_item_regularization
         self.update_negative_item_factors = args.update_negative_item_factors
         
-        self.recordStep = 5 
+        self.recordStep = 10 
+        self.numAucSamples = 5
 
     def train(self, data, sampler, unsigned int num_iters):
         """train model
@@ -55,13 +57,18 @@ cdef class BPR(object):
         """
         cdef unsigned int u, i, j, it       
         cdef numpy.ndarray[double, ndim=2, mode="c"] user_factors        
-        cdef numpy.ndarray[double, ndim=2, mode="c"] item_factors        
-                
+        cdef numpy.ndarray[double, ndim=2, mode="c"] item_factors 
+        
+        sampler.numAucSamples = 1
         user_factors, item_factors, loss_samples  = self.init(data, sampler)
         logging.debug('initial loss = {0}'.format(self.loss(loss_samples, user_factors, item_factors)))
+        logging.debug("Number of loss samples: " + str(len(loss_samples)))      
+        
+        sampler.numAucSamples = self.numAucSamples
+        #train_samples = [t for t in sampler.generate_samples(data)]
         
         for it in xrange(num_iters):
-            for u, i, j in loss_samples:
+            for u, i, j in sampler.generate_samples(data):
                 self.update_factors(user_factors, item_factors, u, i, j)
                 
             if it % self.recordStep == 0:
@@ -126,22 +133,26 @@ cdef class BPR(object):
         """
         Compute the BPR objective which is sum_uij ln sigma(x_uij) + lambda ||theta||^2
         """   
-        cdef unsigned int u, i, j
+        cdef unsigned int u, i, j, normalisation
         cdef double x, ranking_loss, complexity  
         
         ranking_loss = 0;
         for u,i,j in loss_samples:
             x = self.predict(user_factors, item_factors, u, i) - self.predict(user_factors, item_factors, u, j)
+            normalisation += 1
             try: 
                 ranking_loss += log(1.0/(1.0+exp(-x)))
             except OverflowError: 
+                #logging.warning("overflow")
                 if x > 0: 
                     ranking_loss += log(1.0) 
                 elif x < 0: 
                     #Really it should be minus infinity 
                     ranking_loss += -1000
+        
+        #ranking_loss /= normalisation
 
-        complexity = 0;
+        complexity = 0
         for u,i,j in loss_samples:
             complexity += self.user_regularization * (user_factors[u]**2).sum()
             complexity += self.positive_item_regularization * (item_factors[i]**2).sum()
@@ -150,19 +161,14 @@ cdef class BPR(object):
         return ranking_loss - 0.5*complexity
 
     def predict(self, numpy.ndarray[double, ndim=2, mode="c"] user_factors, numpy.ndarray[double, ndim=2, mode="c"] item_factors, unsigned int u, unsigned int i):
-        #Note: item_basic is not in the origin paper         
+        #Note: item_basis is not in the origin paper         
         return numpy.dot(user_factors[u], item_factors[i])
 
 
 class Sampler(object):
     def __init__(self, max_samples=None):
         self.max_samples = max_samples
-
-    def num_samples(self, unsigned int n):
-        if self.max_samples is None:
-            return n
-            
-        return min(n,self.max_samples)
+        self.numAucSamples = 5
 
 class UniformUserUniformItem(Sampler):
     def generate_samples(self, data):
@@ -171,7 +177,8 @@ class UniformUserUniformItem(Sampler):
         #cdef numpy.ndarray[unsigned int, ndim=1, mode="c"] rowInds 
         m, n = data.shape
             
-        for _ in xrange(self.num_samples(data.nnz)):
+        #Note that we ideally need O(m * n^2) samples but picking               
+        for _ in xrange(data.nnz * self.numAucSamples):
             u = numpy.random.randint(0, m)
             # sample positive item
             rowInds = numpy.array(data.rowInds(u), dtype=numpy.uint32)
@@ -179,3 +186,38 @@ class UniformUserUniformItem(Sampler):
             j = inverseChoice(rowInds, n)
 
             yield u, i, j
+       
+class AllUserUniformItem(Sampler):
+    def generate_samples(self, data):
+        cdef unsigned int u, m, n 
+        cdef unsigned int i, j, s
+        #cdef numpy.ndarray[unsigned int, ndim=1, mode="c"] rowInds 
+        m, n = data.shape
+        
+        userInds = numpy.random.permutation(m)
+
+           
+        #Note that we ideally need O(m * n^2) samples but picking               
+        for u in userInds:
+            rowInds = numpy.array(data.rowInds(u), dtype=numpy.uint32)
+            for s in range(self.numAucSamples): 
+                i = numpy.random.choice(rowInds)
+                j = inverseChoice(rowInds, n)
+
+                yield u, i, j       
+       
+class AllUserAllItem(Sampler):
+    def generate_samples(self, data):
+        cdef unsigned int u, m, n 
+        cdef unsigned int i, j
+        #cdef numpy.ndarray[unsigned int, ndim=1, mode="c"] rowInds 
+        m, n = data.shape
+            
+        for u in range(m): 
+            positiveItems = numpy.array(data.rowInds(u), dtype=numpy.uint32)
+            negativeItems = numpy.setdiff1d(numpy.arange(n), positiveItems)
+            
+            for i in positiveItems: 
+                for j in negativeItems: 
+                    yield u, i, j
+            
