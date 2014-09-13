@@ -4,7 +4,7 @@ import unittest
 import numpy
 import sppy 
 import numpy.testing as nptst 
-from bprCython import BPRArgs, BPR, UniformUserUniformItem, AllUserUniformItem 
+from bprCython import BPRArgs, BPR, UniformUserUniformItem, AllUserUniformItem, AllUserAllItem 
 from bpr import BPR as BPRPy 
 from bpr import BPRArgs as BPRArgsPy 
 from sandbox.util.SparseUtils import SparseUtils
@@ -86,10 +86,11 @@ class  bprCythonTest(unittest.TestCase):
         args.negative_item_regularization = 0 
         args.positive_item_regularization = 0 
         args.bias_regularization = 0
-        args.learning_rate = 0 
+        args.learning_rate = 1.0 
         k = 5
         
-        sampler = AllUserUniformItem()        
+        sampler = AllUserAllItem()   
+        sampler.numAucSample= 10
         
         learner = BPR(k, args)   
         user_factors, item_factors, loss_samples = learner.init(self.X, sampler)
@@ -120,7 +121,7 @@ class  bprCythonTest(unittest.TestCase):
                     
                     du1[ell] += (loss1-loss2)/(2*eps)
                     
-                du3, di3, dj3 = learner.update_factors(user_factors, item_factors, u, i, j)
+                du3, di3, dj3 = learner.update_factors(user_factors.copy(), item_factors.copy(), u, i, j)
                 du2 += du3    
                 
         du1 = du1/numpy.linalg.norm(du1)      

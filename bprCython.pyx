@@ -99,13 +99,15 @@ cdef class BPR(object):
         cdef numpy.ndarray[double, ndim=1, mode="c"] dj
         cdef numpy.ndarray[double, ndim=1, mode="c"] item_factors_i
         cdef numpy.ndarray[double, ndim=1, mode="c"] item_factors_j
+        cdef numpy.ndarray[double, ndim=1, mode="c"] item_factors_ij
         cdef numpy.ndarray[double, ndim=1, mode="c"] user_factors_u
 
         item_factors_i = item_factors[i]
         item_factors_j = item_factors[j]
+        item_factors_ij = item_factors_i - item_factors_j
         user_factors_u = user_factors[u]
 
-        x = numpy.dot(user_factors_u, item_factors_i-item_factors_j)
+        x = user_factors_u.dot(item_factors_ij)
 
         #Fix for numerical overflow issues 
         try: 
@@ -116,19 +118,20 @@ cdef class BPR(object):
                 z = 0 
             elif x < 0: 
                 z = 1
-                
+        
+           
         #Note all the regularisers are negative according to objective. Also we are adding the gradient 
         #since we wish to maximise the objective
-        du = (item_factors_i-item_factors_j)*z - self.user_regularization*user_factors_u
-        user_factors[u, :] += self.learning_rate*du
+        du = (item_factors_ij)*(z*self.learning_rate) - (self.learning_rate*self.user_regularization)*user_factors_u
+        user_factors[u, :] += du
         
         user_factors_u = user_factors[u, :]
         
-        di = user_factors_u*z - self.positive_item_regularization*item_factors_i
-        item_factors[i,:] += self.learning_rate*di
+        di = user_factors_u*(z*self.learning_rate) - (self.learning_rate*self.positive_item_regularization)*item_factors_i
+        item_factors[i,:] += di
 
-        dj = -user_factors_u*z - self.negative_item_regularization*item_factors_j
-        item_factors[j,:] += self.learning_rate*dj
+        dj = -user_factors_u*(z*self.learning_rate) - (self.learning_rate*self.negative_item_regularization)*item_factors_j
+        item_factors[j,:] += dj
             
         return du, di, dj 
 
