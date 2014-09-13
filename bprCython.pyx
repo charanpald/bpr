@@ -17,13 +17,11 @@ from sandbox.util.MCEvaluator import MCEvaluator
 class BPRArgs(object):
 
     def __init__(self,learning_rate=0.05,
-                 bias_regularization=1.0,
                  user_regularization=0.0025,
                  positive_item_regularization=0.0025,
                  negative_item_regularization=0.00025,
                  update_negative_item_factors=True):
         self.learning_rate = learning_rate
-        self.bias_regularization = bias_regularization
         self.user_regularization = user_regularization
         self.positive_item_regularization = positive_item_regularization
         self.negative_item_regularization = negative_item_regularization
@@ -31,7 +29,7 @@ class BPRArgs(object):
 
 cdef class BPR(object):
     cdef public unsigned int D, recordStep
-    cdef public double bias_regularization, user_regularization, learning_rate
+    cdef public double user_regularization, learning_rate
     cdef public double positive_item_regularization, negative_item_regularization
     cdef public bint update_negative_item_factors  
     cdef public unsigned int numAucSamples 
@@ -42,7 +40,6 @@ cdef class BPR(object):
         """
         self.D = D
         self.learning_rate = args.learning_rate
-        self.bias_regularization = args.bias_regularization
         self.user_regularization = args.user_regularization
         self.positive_item_regularization = args.positive_item_regularization
         self.negative_item_regularization = args.negative_item_regularization
@@ -75,8 +72,8 @@ cdef class BPR(object):
 
             if it % self.recordStep == 0:
                 logging.debug( 'iteration {0}: loss = {1}'.format(it, self.loss(loss_samples, user_factors, item_factors)))
-                #logging.debug("AUC:" + str(MCEvaluator.averageAuc(data, user_factors, item_factors)))
-                loss_samples = [t for t in sampler.generate_samples(data)]
+                logging.debug("AUC:" + str(MCEvaluator.averageAuc(data, user_factors, item_factors)))
+                #loss_samples = [t for t in sampler.generate_samples(data)]
             
         return user_factors, item_factors 
 
@@ -163,7 +160,7 @@ cdef class BPR(object):
             complexity += self.user_regularization * (user_factors[u]**2).sum()
             complexity += self.positive_item_regularization * (item_factors[i]**2).sum()
             complexity += self.negative_item_regularization * (item_factors[j]**2).sum()
-
+            
         return ranking_loss - 0.5*complexity
 
     def predict(self, numpy.ndarray[double, ndim=2, mode="c"] user_factors, numpy.ndarray[double, ndim=2, mode="c"] item_factors, unsigned int u, unsigned int i):
