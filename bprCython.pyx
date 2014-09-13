@@ -193,17 +193,17 @@ class UniformUserUniformItem(Sampler):
 class AllUserUniformItem(Sampler):
     def generate_samples(self, data):
         cdef unsigned int u, m, n 
-        cdef unsigned int i, j, s
+        cdef unsigned int i, j, s, numItemSamples
         #cdef numpy.ndarray[unsigned int, ndim=1, mode="c"] rowInds 
         m, n = data.shape
-        
+        numItemSamples = int((self.numAucSamples * data.nnz)/m)
         userInds = numpy.random.permutation(m)
 
            
-        #Note that we ideally need O(m * n^2) samples but picking               
+        #Note that we ideally need O(m * n^2) samples but picking fewer              
         for u in userInds:
             rowInds = numpy.array(data.rowInds(u), dtype=numpy.uint32)
-            for s in range(self.numAucSamples): 
+            for s in range(numItemSamples): 
                 i = numpy.random.choice(rowInds)
                 j = inverseChoice(rowInds, n)
 
