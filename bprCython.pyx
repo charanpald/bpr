@@ -157,9 +157,12 @@ cdef class BPR(object):
 
         complexity = 0
         for u,i,j in loss_samples:
-            complexity += self.user_regularization * (user_factors[u]**2).sum()
-            complexity += self.positive_item_regularization * (item_factors[i]**2).sum()
-            complexity += self.negative_item_regularization * (item_factors[j]**2).sum()
+            try: 
+                complexity += self.user_regularization * (user_factors[u]**2).sum()
+                complexity += self.positive_item_regularization * (item_factors[i]**2).sum()
+                complexity += self.negative_item_regularization * (item_factors[j]**2).sum()
+            except OverflowError: 
+                logging.warn("Overflow in computing complexity")
             
         return ranking_loss - 0.5*complexity
 
